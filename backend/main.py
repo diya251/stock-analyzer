@@ -4,6 +4,12 @@ import yfinance as yf
 import pandas as pd
 import ta
 import math
+import os
+from dotenv import load_dotenv
+from google import genai
+
+load_dotenv()
+client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 
 app = FastAPI()
 
@@ -15,7 +21,6 @@ app.add_middleware(
 )
 
 def clean_floats(obj):
-    """Replace NaN/Inf with None so JSON serialization doesn't fail."""
     if isinstance(obj, float):
         if math.isnan(obj) or math.isinf(obj):
             return None
@@ -30,7 +35,6 @@ def fetch_df(ticker: str, period: str) -> pd.DataFrame:
     df = yf.download(ticker, period=period, auto_adjust=True, progress=False)
     if df.empty:
         raise HTTPException(status_code=404, detail="Ticker not found")
-    # yfinance 0.2+ returns MultiIndex columns — flatten them
     if isinstance(df.columns, pd.MultiIndex):
         df.columns = df.columns.get_level_values(0)
     df = df.reset_index()
@@ -73,6 +77,57 @@ def get_indicators(ticker: str, period: str = "6mo"):
             "bb_lower": bb_lower,
             "close": close.round(2).tolist(),
         })
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.get("/analyze/{ticker}")
+def analyze(ticker: str):
+    try:
+        df = fetch_df(ticker, "3mo")
+        close = df["Close"].astype(float)
+
+        rsi = ta.momentum.RSIIndicator(close, window=14).rsi()
+        macd_obj = ta.trend.MACD(close)
+        macd_line = macd_obj.macd()
+        signal_line = macd_obj.macd_signal()
+        bb = ta.volatility.BollingerBands(close, window=20)
+
+        latest_close = round(close.iloc[-1], 2)
+        latest_rsi = round(rsi.dropna().iloc[-1], 2)
+        latest_macd = round(macd_line.dropna().iloc[-1], 4)
+        latest_signal = round(signal_line.dropna().iloc[-1], 4)
+        latest_bb_upper = round(bb.bollinger_hband().iloc[-1], 2)
+        latest_bb_lower = round(bb.bollinger_lband().iloc[-1], 2)
+        price_change = round(((close.iloc[-1] - close.iloc[0]) / close.iloc[0]) * 100, 2)
+
+        prompt = f"""
+You are a stock market analyst. Analyze the following technical indicators for {ticker.upper()} and give a concise summary.
+
+Current Data:
+- Price: ${latest_close}
+- 3-month price change: {price_change}%
+- RSI (14): {latest_rsi} — above 70 is overbought, below 30 is oversold
+- MACD: {latest_macd}, Signal: {latest_signal} — if MACD > Signal it is bullish
+- Bollinger Bands: Upper ${latest_bb_upper}, Lower ${latest_bb_lower} — price near upper band means overbought, near lower means oversold
+
+Write a 3-4 sentence analysis covering:
+1. Overall signal (bullish, bearish, or neutral)
+2. What the RSI suggests
+3. What the MACD suggests
+4. One sentence conclusion with a caution that this is not financial advice
+
+Keep it simple and clear for a retail investor.
+"""
+
+        response = client.models.generate_content(
+            model="gemini-2.0-flash",
+            contents=prompt
+        )
+        return {"ticker": ticker.upper(), "analysis": response.text}
+
     except HTTPException:
         raise
     except Exception as e:
