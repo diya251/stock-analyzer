@@ -1,18 +1,14 @@
 # Python
 __pycache__/
 *.pyc
-.env
-# Python
-__pycache__/
-*.pyc
 *.pyo
 
 # Node
 node_modules/
-# Node
-node_modules/
 dist/
+dist-ssr/
 .vite/
+
 # Logs
 logs
 *.log
@@ -22,9 +18,9 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-node_modules
-dist
-dist-ssr
+# Environment
+.env
+.env.local
 *.local
 
 # Editor directories and files
@@ -37,12 +33,3 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
-# Python
-__pycache__/
-*.pyc
-.env
-
-# Node
-node_modules/
-dist/
-.vite/
