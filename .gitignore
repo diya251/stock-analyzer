@@ -2,7 +2,13 @@
 __pycache__/
 *.pyc
 .env
+# Python
+__pycache__/
+*.pyc
+*.pyo
 
+# Node
+node_modules/
 # Node
 node_modules/
 dist/

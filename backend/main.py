@@ -123,7 +123,7 @@ Keep it simple and clear for a retail investor.
 """
 
         response = client.models.generate_content(
-            model="gemini-2.0-flash",
+            model="gemini-2.0-flash-lite",
             contents=prompt
         )
         return {"ticker": ticker.upper(), "analysis": response.text}
